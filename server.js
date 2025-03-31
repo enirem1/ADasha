@@ -88,12 +88,18 @@ app.post('/api/parking/update', async (req, res) => {
 
 // Get Logs
 app.get('/api/logs', async (req, res) => {
-    db.query('SELECT * FROM Logs ORDER BY timestamp DESC', (err, results) => {
+    const query = `
+        SELECT logs.id, logs.user_id, users.username, logs.spot_id, logs.timestamp, logs.action 
+        FROM Logs logs
+        LEFT JOIN Users users ON logs.user_id = users.id
+        ORDER BY logs.timestamp DESC
+    `;
+    
+    db.query(query, (err, results) => {
         if (err) return res.status(500).send(err.message);
         res.json(results);
     });
 });
-
 // Start Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
