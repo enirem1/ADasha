@@ -244,3 +244,46 @@ button:hover {
     background-color: #e74c3c;
     color: white;
 }
+/* Add this to styles.css */
+.barrier-control {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.barrier-btn {
+    background-color: #f39c12;
+    padding: 10px 20px;
+    font-size: 16px;
+    margin-right: 15px;
+}
+
+.barrier-btn:hover:not([disabled]) {
+    background-color: #e67e22;
+}
+
+.barrier-btn:disabled {
+    background-color: #95a5a6;
+    cursor: not-allowed;
+}
+
+.barrier-btn i {
+    margin-right: 8px;
+}
+
+#barrierStatus {
+    font-weight: bold;
+    color: #7f8c8d;
+}
+
+.barrier-btn.active {
+    background-color: #e74c3c;
+}
+
+.barrier-btn.active:hover {
+    background-color: #c0392b;
+}

@@ -103,3 +103,206 @@ app.get('/api/logs', async (req, res) => {
 // Start Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const WebSocket = require('ws');
+
+// Add this to your server.js after the Express setup
+// Create WebSocket server
+const wss = new WebSocket.Server({ port: 8080 });
+
+// Store connected devices
+const connectedDevices = new Set();
+// Add/modify in your server.js file to properly handle ESP32 communications
+
+// Modify this WebSocket message handler to match ESP32 expectations
+wss.on('connection', (ws) => {
+    console.log('Device connected to WebSocket');
+    connectedDevices.add(ws);
+    
+    ws.on('message', (message) => {
+        try {
+            const data = JSON.parse(message);
+            console.log('Received data from device:', data);
+            
+            // Handle IR sensor updates from ESP32
+            if (data.type === 'spot_update') {
+                const { spotId, isOccupied } = data;
+                const status = isOccupied ? 'occupied' : 'vacant';
+                
+                // Update database with the new spot status
+                db.query('UPDATE ParkingSpots SET status = ? WHERE id = ?', 
+                [status, spotId], (err, results) => {
+                    if (err) {
+                        console.error('Database update error:', err);
+                        return;
+                    }
+                    
+                    // Broadcast the update to all connected clients (web and ESP32)
+                    broadcastSpotUpdate(spotId, status);
+                    
+                    // Log the action in the database
+                    const action = isOccupied ? 'entry' : 'exit';
+                    db.query('INSERT INTO Logs (spot_id, action, timestamp) VALUES (?, ?, NOW())', 
+                    [spotId, action], (logErr) => {
+                        if (logErr) console.error('Log entry error:', logErr);
+                    });
+                });
+            }
+            // Handle ESP32 requesting available spots count
+            else if (data.type === 'request_count') {
+                db.query('SELECT COUNT(*) as available FROM ParkingSpots WHERE status = "vacant"', 
+                (err, results) => {
+                    if (err) {
+                        console.error('Error fetching available count:', err);
+                        return;
+                    }
+                    
+                    const availableCount = results[0].available;
+                    
+                    // Send count only to the requesting device
+                    ws.send(JSON.stringify({
+                        type: 'available_count',
+                        count: availableCount
+                    }));
+                });
+            }
+        } catch (e) {
+            console.error('Error parsing message from device:', e);
+        }
+    });
+    
+    ws.on('close', () => {
+        console.log('Device disconnected');
+        connectedDevices.delete(ws);
+    });
+    
+    // Send initial parking data to the device
+    db.query('SELECT * FROM ParkingSpots', (err, results) => {
+        if (err) {
+            console.error('Database query error:', err);
+            return;
+        }
+        
+        ws.send(JSON.stringify({
+            type: 'initial_data',
+            spots: results
+        }));
+    });
+});
+
+// Function to broadcast spot updates to all connected devices
+function broadcastSpotUpdate(spotId, status) {
+    const message = JSON.stringify({
+        type: 'spot_status_change',
+        spotId: spotId,
+        status: status
+    });
+    
+    connectedDevices.forEach(device => {
+        try {
+            device.send(message);
+        } catch (e) {
+            console.error('Error sending to device:', e);
+        }
+    });
+}
+
+// Make sure the API endpoints for barrier control are properly implemented
+// Add a system user ID for non-user actions (use an existing admin user's ID)
+const SYSTEM_USER_ID = 1;  // Use your admin user ID here
+// Add this variable to track the auto-close timer
+let barrierAutoCloseTimer = null;
+
+// Update the open barrier endpoint
+app.post('/api/barrier/open', (req, res) => {
+    // Send command to ESP32 to open barrier
+    connectedDevices.forEach(device => {
+        try {
+            device.send(JSON.stringify({
+                type: 'barrier_control',
+                action: 'open'
+            }));
+        } catch (e) {
+            console.error('Error sending to device:', e);
+        }
+    });
+    
+    // Log the barrier action with NULL spot_id
+    db.query('INSERT INTO Logs (user_id, spot_id, action, timestamp) VALUES (NULL, NULL, "barrier_open", NOW())', 
+    (err) => {
+        if (err) return res.status(500).json({ message: err.message });
+        
+        // Clear any existing timer to prevent multiple timers
+        if (barrierAutoCloseTimer) {
+            clearTimeout(barrierAutoCloseTimer);
+        }
+        
+        // Set auto-close timer for 30 seconds
+        barrierAutoCloseTimer = setTimeout(() => {
+            console.log('Auto-closing barrier after 30 seconds');
+            
+            // Auto-close the barrier
+            connectedDevices.forEach(device => {
+                try {
+                    device.send(JSON.stringify({
+                        type: 'barrier_control',
+                        action: 'close'
+                    }));
+                } catch (e) {
+                    console.error('Error sending to device:', e);
+                }
+            });
+            
+            // Log the auto-close action
+            db.query('INSERT INTO Logs (user_id, spot_id, action, timestamp) VALUES (NULL, NULL, "barrier_close_auto", NOW())', 
+            (logErr) => {
+                if (logErr) console.error('Error logging auto-close:', logErr);
+            });
+            
+            barrierAutoCloseTimer = null;
+        }, 30000); // 30 seconds
+        
+        res.json({ message: 'Barrier opened successfully (will auto-close in 30 seconds)' });
+    });
+});
+
+// Update the close barrier endpoint to clear the timer when manually closed
+app.post('/api/barrier/close', (req, res) => {
+    // Clear any existing auto-close timer
+    if (barrierAutoCloseTimer) {
+        clearTimeout(barrierAutoCloseTimer);
+        barrierAutoCloseTimer = null;
+    }
+    
+    // Send command to ESP32 to close barrier
+    connectedDevices.forEach(device => {
+        try {
+            device.send(JSON.stringify({
+                type: 'barrier_control',
+                action: 'close'
+            }));
+        } catch (e) {
+            console.error('Error sending to device:', e);
+        }
+    });
+    
+    // Log the barrier action with NULL spot_id
+    db.query('INSERT INTO Logs (user_id, spot_id, action, timestamp) VALUES (NULL, NULL, "barrier_close", NOW())', 
+    (err) => {
+        if (err) return res.status(500).json({ message: err.message });
+        res.json({ message: 'Barrier closed successfully' });
+    });
+});
+
+// Function to authenticate JWT token
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    if (!token) return res.status(401).json({ message: 'Authentication required' });
+    
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ message: 'Invalid or expired token' });
+        req.user = user;
+        next();
+    });
+}

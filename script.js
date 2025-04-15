@@ -21,8 +21,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const registerForm = document.getElementById('registerForm');
     const loginCloseBtn = document.querySelector('#loginModal .close');
     const registerCloseBtn = document.querySelector('#registerModal .close');
-    
+    const barrierBtn = document.getElementById('barrierBtn');
+    const barrierStatus = document.getElementById('barrierStatus');
     // Event Listeners
+    barrierBtn.addEventListener('click', toggleBarrier);
     loginBtn.addEventListener('click', openLoginModal);
     registerBtn.addEventListener('click', openRegisterModal);
     logoutBtn.addEventListener('click', logout);
@@ -86,6 +88,9 @@ document.addEventListener('DOMContentLoaded', function() {
         loginBtn.style.display = 'none';
         registerBtn.style.display = 'none';
         logoutBtn.style.display = 'block';
+        
+        // Enable barrier button (which is already enabled for all users now)
+        barrierBtn.disabled = false;
     }
     
     function updateUIForLoggedOutUser() {
@@ -93,6 +98,12 @@ document.addEventListener('DOMContentLoaded', function() {
         loginBtn.style.display = 'block';
         registerBtn.style.display = 'block';
         logoutBtn.style.display = 'none';
+        
+        // Enable barrier button for everyone
+        barrierBtn.disabled = true; // Change from true to false
+        // Remove the 'active' class if it exists
+        barrierBtn.classList.remove('active');
+        barrierStatus.textContent = 'Barrier closed';
     }
     
     function openLoginModal() {
@@ -112,7 +123,61 @@ document.addEventListener('DOMContentLoaded', function() {
         registerModal.style.display = 'none';
         registerForm.reset();
     }
+   // Remove the authentication code from the toggleBarrier function
+// Update the toggleBarrier function in script.js
+async function toggleBarrier() {
+    const isOpen = barrierBtn.classList.contains('active');
+    const action = isOpen ? 'close' : 'open';
     
+    try {
+        const response = await fetch(`${API_URL}/barrier/${action}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (!isOpen) {
+                // Opening the barrier
+                barrierBtn.classList.add('active');
+                barrierStatus.textContent = 'Barrier open (auto-closes in 30s)';
+                barrierBtn.innerHTML = '<i class="fas fa-door-closed"></i> Close Barrier';
+                
+                // Show countdown
+                let countdown = 30;
+                const countdownInterval = setInterval(() => {
+                    countdown--;
+                    if (countdown <= 0) {
+                        clearInterval(countdownInterval);
+                        // Status will be updated by the next fetchActivityLogs call
+                    } else if (barrierBtn.classList.contains('active')) {
+                        barrierStatus.textContent = `Barrier open (auto-closes in ${countdown}s)`;
+                    } else {
+                        clearInterval(countdownInterval);
+                    }
+                }, 1000);
+                
+            } else {
+                // Closing the barrier
+                barrierBtn.classList.remove('active');
+                barrierStatus.textContent = 'Barrier closed';
+                barrierBtn.innerHTML = '<i class="fas fa-door-open"></i> Open Barrier';
+            }
+            
+            // Log the barrier activity
+            fetchActivityLogs();
+            
+        } else {
+            alert(`Failed to ${action} barrier: ${data.message || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error controlling barrier:', error);
+        alert(`Failed to ${action} barrier. Please try again.`);
+    }
+}
     async function handleLogin(e) {
         e.preventDefault();
         

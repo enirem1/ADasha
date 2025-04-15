@@ -9,12 +9,8 @@ const ParkingSpots = () => {
     }, []);
 
     const fetchSpots = async () => {
-        try {
-            const response = await getParkingSpots();
-            setSpots(response.data);
-        } catch (error) {
-            console.error('Error fetching parking spots:', error);
-        }
+        const data = await getParkingSpots();
+        setSpots(data);
     };
 
     return (
@@ -23,7 +19,9 @@ const ParkingSpots = () => {
             {spots.length > 0 ? (
                 <ul>
                     {spots.map(spot => (
-                        <li key={spot.id}>Spot {spot.id} - {spot.status}</li>
+                        <li key={spot.id}>
+                            Spot {spot.id} - {spot.status}
+                        </li>
                     ))}
                 </ul>
             ) : (
