@@ -10,26 +10,37 @@ const char* ssid = "Mihalew";       // Replace with your WiFi SSID
 const char* password = "Semeomed1"; // Replace with your WiFi password
 
 // WebSocket server details
-const char* wsHost = "192.168.1.104"; // Your server IP address
+const char* wsHost = "192.168.1.105"; // Your server IP address
 const int wsPort = 8080;
 
 // Hardware pins
 #define SERVO_PIN 13
+
+// IR Sensor pins
 #define IR_SENSOR1_PIN 14
 #define IR_SENSOR2_PIN 27
 #define IR_SENSOR3_PIN 26
+#define IR_SENSOR4_PIN 32
+#define IR_SENSOR5_PIN 33
+#define IR_SENSOR6_PIN 25
 
 // LED pins (pairs of red/green LEDs for each spot)
 #define RED_LED1 15
 #define GREEN_LED1 2
-#define RED_LED2 16  // Changed from pin 4 to avoid conflict
+#define RED_LED2 16
 #define GREEN_LED2 5
 #define RED_LED3 17
 #define GREEN_LED3 18
+#define RED_LED4 19
+#define GREEN_LED4 23
+#define RED_LED5 12
+#define GREEN_LED5 34
+#define RED_LED6 39
+#define GREEN_LED6 4
 
-// TM1637 Display pins
-#define CLK_PIN 0  // I2C Clock pin
-#define DIO_PIN 4  // I2C Data pin
+// TM1637 Display pins - changed from GPIO 0
+#define CLK_PIN 21  // I2C Clock pin - new assignment
+#define DIO_PIN 22  // I2C Data pin - new assignment
 
 // Initialize objects
 WebSocketsClient webSocket;
@@ -37,12 +48,12 @@ Servo barrierServo;
 TM1637Display display(CLK_PIN, DIO_PIN);
 
 // Store previous sensor states to detect changes
-bool prevSensorStates[3] = {false, false, false};
-bool spotOccupied[3] = {false, false, false};
+bool prevSensorStates[6] = {false, false, false, false, false, false};
+bool spotOccupied[6] = {false, false, false, false, false, false};
 
 // Store number of available spots
 int availableSpots = 0;
-int totalSpots = 3;  // Match the database count (adjust as needed)
+int totalSpots = 6;  // Match the database count (adjust as needed)
 
 // Reconnection variables
 unsigned long lastReconnectAttempt = 0;
@@ -61,6 +72,9 @@ void setup() {
   pinMode(IR_SENSOR1_PIN, INPUT);
   pinMode(IR_SENSOR2_PIN, INPUT);
   pinMode(IR_SENSOR3_PIN, INPUT);
+  pinMode(IR_SENSOR4_PIN, INPUT);
+  pinMode(IR_SENSOR5_PIN, INPUT);
+  pinMode(IR_SENSOR6_PIN, INPUT);
   
   // Initialize LEDs as outputs
   pinMode(RED_LED1, OUTPUT);
@@ -69,6 +83,12 @@ void setup() {
   pinMode(GREEN_LED2, OUTPUT);
   pinMode(RED_LED3, OUTPUT);
   pinMode(GREEN_LED3, OUTPUT);
+  pinMode(RED_LED4, OUTPUT);
+  pinMode(GREEN_LED4, OUTPUT);
+  pinMode(RED_LED5, OUTPUT);
+  pinMode(GREEN_LED5, OUTPUT);
+  pinMode(RED_LED6, OUTPUT);
+  pinMode(GREEN_LED6, OUTPUT);
   
   // Initialize all LEDs
   for (int i = 1; i <= totalSpots; i++) {
@@ -145,12 +165,15 @@ void connectWebSocket() {
 }
 
 void checkParkingSpots() {
-  bool currentSensorStates[3];
+  bool currentSensorStates[6];
   
   // Read all IR sensors
   currentSensorStates[0] = digitalRead(IR_SENSOR1_PIN) == LOW; // LOW means obstacle detected
   currentSensorStates[1] = digitalRead(IR_SENSOR2_PIN) == LOW;
   currentSensorStates[2] = digitalRead(IR_SENSOR3_PIN) == LOW;
+  currentSensorStates[3] = digitalRead(IR_SENSOR4_PIN) == LOW;
+  currentSensorStates[4] = digitalRead(IR_SENSOR5_PIN) == LOW;
+  currentSensorStates[5] = digitalRead(IR_SENSOR6_PIN) == LOW;
   
   // Check each spot for changes
   int newAvailableSpots = totalSpots;
@@ -194,6 +217,18 @@ void updateLED(int spotId, bool isOccupied) {
     case 3:
       redPin = RED_LED3;
       greenPin = GREEN_LED3;
+      break;
+    case 4:
+      redPin = RED_LED4;
+      greenPin = GREEN_LED4;
+      break;
+    case 5:
+      redPin = RED_LED5;
+      greenPin = GREEN_LED5;
+      break;
+    case 6:
+      redPin = RED_LED6;
+      greenPin = GREEN_LED6;
       break;
     default:
       return; // Invalid spot ID
