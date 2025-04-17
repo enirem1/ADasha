@@ -178,37 +178,45 @@ async function toggleBarrier() {
         alert(`Failed to ${action} barrier. Please try again.`);
     }
 }
-    async function handleLogin(e) {
-        e.preventDefault();
-        
-        const username = document.getElementById('username-field').value;
-        const password = document.getElementById('password').value;
-        
-        try {
-            const response = await fetch(`${API_URL}/auth/login`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, password })
-            });
-            
-            const data = await response.json();
-            
-            if (response.ok) {
-                localStorage.setItem('parkingToken', data.token);
-                closeLoginModal();
-                checkLoginStatus();
-                alert('Login successful!');
-            } else {
-                alert(`Login failed: ${data.message || 'Invalid credentials'}`);
-            }
-        } catch (error) {
-            console.error('Login error:', error);
-            alert('Login failed. Please try again.');
-        }
-    }
+async function handleLogin(e) {
+    e.preventDefault();
     
+    const username = document.getElementById('username-field').value;
+    const password = document.getElementById('password').value;
+    
+    try {
+        const response = await fetch(`${API_URL}/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
+        });
+        
+        // Handle both JSON and text responses
+        const contentType = response.headers.get("content-type");
+        let data;
+        
+        if (contentType && contentType.includes("application/json")) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            data = { message: text };
+        }
+        
+        if (response.ok) {
+            localStorage.setItem('parkingToken', data.token);
+            closeLoginModal();
+            checkLoginStatus();
+            alert('Login successful!');
+        } else {
+            alert(`Login failed: ${data.message || 'Invalid credentials'}`);
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        alert('Login failed. Please try again.');
+    }
+}
     async function handleRegister(e) {
         e.preventDefault();
         

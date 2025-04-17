@@ -46,21 +46,20 @@ app.post('/api/auth/login', async (req, res) => {
     const { username, password } = req.body;
     try {
         db.query('SELECT * FROM Users WHERE username = ?', [username], async (err, results) => {
-            if (err) return res.status(500).send(err.message);
-            if (results.length === 0) return res.status(401).send('User not found');
+            if (err) return res.status(500).json({ message: err.message });
+            if (results.length === 0) return res.status(401).json({ message: 'User not found' });
             
             const user = results[0];
             const isMatch = await bcrypt.compare(password, user.password);
-            if (!isMatch) return res.status(401).send('Invalid credentials');
+            if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
             
             const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
             res.json({ token });
         });
     } catch (error) {
-        res.status(500).send(error.message);
+        res.status(500).json({ message: error.message });
     }
 });
-
 // Get Parking Spots
 app.get('/api/parking', async (req, res) => {
     db.query('SELECT * FROM ParkingSpots', (err, results) => {
